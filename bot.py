@@ -2450,15 +2450,13 @@ async def admin_del(message: types.Message):
     except (IndexError, ValueError):
         await message.answer("❌ Использование: /del ad_id")
 
-# ========== ВЕБ-СЕРВЕР ДЛЯ RENDER (ДОЛЖЕН БЫТЬ ПЕРЕД main()) ==========
-from aiohttp import web
-
+# ========== ВЕБ-СЕРВЕР ДЛЯ RENDER ==========
 async def health_check(request):
     """Проверка работоспособности бота"""
     return web.Response(text="Bot is running")
 
 async def start_web_server():
-    """Запуск веб-сервера для Render"""
+    """Запуск веб-сервера для Render (в фоновом режиме)"""
     app = web.Application()
     app.router.add_get('/health', health_check)
     app.router.add_get('/', health_check)
@@ -2475,8 +2473,16 @@ async def main():
     """Главная функция запуска бота"""
     print("🚀 Бот запускается...")
     
-    # Запускаем веб-сервер (нужен для Render)
-    await start_web_server()
+    # ===== КРИТИЧЕСКИ ВАЖНО: сброс вебхука =====
+    try:
+        await bot.delete_webhook(drop_pending_updates=True)
+        print("✅ Вебхук удалён")
+    except Exception as e:
+        print(f"⚠️ Ошибка удаления вебхука: {e}")
+    
+    # Запускаем веб-сервер в фоне
+    asyncio.create_task(start_web_server())
+    print("🌐 Веб-сервер запущен в фоне")
     
     # Информация о боте
     try:
