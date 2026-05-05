@@ -2450,6 +2450,26 @@ async def admin_del(message: types.Message):
     except (IndexError, ValueError):
         await message.answer("❌ Использование: /del ad_id")
 
+# ========== ВЕБ-СЕРВЕР ДЛЯ RENDER (ДОЛЖЕН БЫТЬ ПЕРЕД main()) ==========
+from aiohttp import web
+
+async def health_check(request):
+    """Проверка работоспособности бота"""
+    return web.Response(text="Bot is running")
+
+async def start_web_server():
+    """Запуск веб-сервера для Render"""
+    app = web.Application()
+    app.router.add_get('/health', health_check)
+    app.router.add_get('/', health_check)
+    
+    port = int(os.environ.get('PORT', 8080))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    print(f"✅ Веб-сервер запущен на порту {port}")
+
 # ========== 18. ЗАПУСК БОТА ==========
 async def main():
     """Главная функция запуска бота"""
@@ -2504,25 +2524,6 @@ async def main():
     # Запускаем бота
     await dp.start_polling(bot, skip_updates=True)
 
-# ========== 19. ВЕБ-СЕРВЕР ДЛЯ RENDER ==========
-from aiohttp import web
-
-async def health_check(request):
-    """Проверка работоспособности бота"""
-    return web.Response(text="Bot is running")
-
-async def start_web_server():
-    """Запуск веб-сервера для Render"""
-    app = web.Application()
-    app.router.add_get('/health', health_check)
-    app.router.add_get('/', health_check)
-    
-    port = int(os.environ.get('PORT', 8080))
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', port)
-    await site.start()
-    print(f"✅ Веб-сервер запущен на порту {port}")
 
 if __name__ == "__main__":
     try:
