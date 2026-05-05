@@ -4,6 +4,7 @@ import logging
 import asyncio
 import sqlite3
 import re
+from aiohttp import web
 from collections import defaultdict
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
@@ -2454,6 +2455,9 @@ async def main():
     """Главная функция запуска бота"""
     print("🚀 Бот запускается...")
     
+    # Запускаем веб-сервер (нужен для Render)
+    await start_web_server()
+    
     # Информация о боте
     try:
         bot_info = await bot.get_me()
@@ -2475,14 +2479,14 @@ async def main():
     # Периодическая очистка черновиков (каждый час)
     async def periodic_cleanup():
         while True:
-            await asyncio.sleep(3600)  # 1 час
+            await asyncio.sleep(3600)
             cleanup_old_drafts()
             print("🧹 Выполнена очистка старых черновиков")
     
     # Периодическая проверка просроченных объявлений (каждые 6 часов)
     async def periodic_expiration_check():
         while True:
-            await asyncio.sleep(21600)  # 6 часов
+            await asyncio.sleep(21600)
             print("🔍 Запущена плановая проверка просроченных объявлений...")
             deleted = await delete_expired_ads_from_channel()
             if deleted > 0:
@@ -2499,6 +2503,26 @@ async def main():
     
     # Запускаем бота
     await dp.start_polling(bot, skip_updates=True)
+
+# ========== 19. ВЕБ-СЕРВЕР ДЛЯ RENDER ==========
+from aiohttp import web
+
+async def health_check(request):
+    """Проверка работоспособности бота"""
+    return web.Response(text="Bot is running")
+
+async def start_web_server():
+    """Запуск веб-сервера для Render"""
+    app = web.Application()
+    app.router.add_get('/health', health_check)
+    app.router.add_get('/', health_check)
+    
+    port = int(os.environ.get('PORT', 8080))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    print(f"✅ Веб-сервер запущен на порту {port}")
 
 if __name__ == "__main__":
     try:
