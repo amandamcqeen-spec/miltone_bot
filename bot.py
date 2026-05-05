@@ -840,31 +840,49 @@ async def publish_ad_to_channel(ad_id: int):
     if not ad or not CHANNEL_ID:
         return False
     
-# ===== ДОБАВИТЬ ЭТУ ПРОВЕРКУ =====
+    # ===== ПРОВЕРКА ПРАВ БОТА В КАНАЛЕ =====
     try:
-        # Проверяем, может ли бот отправлять сообщения
         me = await bot.get_me()
         my_member = await bot.get_chat_member(CHANNEL_ID, me.id)
         
-        # Для aiogram 3.x используем статус вместо can_send_messages
         if my_member.status not in ['administrator', 'creator']:
             print(f"❌ Бот не является администратором канала {CHANNEL_ID}")
             logging.error(f"Бот не является администратором канала {CHANNEL_ID}")
             return False
         
-        # Дополнительная проверка прав для администратора
         if my_member.status == 'administrator':
-            # Проверяем, есть ли право отправлять сообщения
-            if hasattr(my_member, 'can_post_messages'):
-                if not my_member.can_post_messages:
-                    print(f"❌ Бот не может публиковать сообщения в канале {CHANNEL_ID}")
-                    logging.error(f"Бот не может публиковать сообщения в канале {CHANNEL_ID}")
-                    return False
+            if hasattr(my_member, 'can_post_messages') and not my_member.can_post_messages:
+                print(f"❌ Бот не имеет права публиковать сообщения в канале {CHANNEL_ID}")
+                logging.error(f"Бот не имеет права публиковать сообщения в канале {CHANNEL_ID}")
+                return False
+        
+        print(f"✅ Права бота в канале проверены успешно")
     except Exception as e:
         print(f"❌ Ошибка доступа к каналу: {e}")
         logging.error(f"Ошибка доступа к каналу: {e}")
         return False
+    # ===== КОНЕЦ ПРОВЕРКИ =====
     
+    # ===== БЕЗОПАСНОЕ ФОРМИРОВАНИЕ ДАННЫХ =====
+    try:
+        ad_dict = {
+            'user_id': ad[1] if len(ad) > 1 else 0,
+            'phone': ad[2] if len(ad) > 2 else '',
+            'city': ad[3] if len(ad) > 3 else '',
+            'address': ad[4] if len(ad) > 4 else '',
+            'title': ad[5] if len(ad) > 5 else 'Без названия',
+            'description': ad[6] if len(ad) > 6 else '',
+            'price': ad[7] if len(ad) > 7 else '',
+            'category': ad[8] if len(ad) > 8 else 'other',
+            'photos': ad[9] if len(ad) > 9 else '',
+            'is_highlighted': ad[11] if len(ad) > 11 else 0,
+            'created_at': ad[14] if len(ad) > 14 else datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+    except IndexError as e:
+        print(f"❌ Ошибка индекса: {e}")
+        return False
+    
+    # Вычисляем значения ДО использования ad_dict
     highlight_icon = "✨ " if ad_dict['is_highlighted'] else ""
     
     created_raw = ad_dict['created_at']
@@ -879,14 +897,16 @@ async def publish_ad_to_channel(ad_id: int):
             formatted_date = datetime.now().strftime('%d.%m.%Y в %H:%M')
     else:
         formatted_date = datetime.now().strftime('%d.%m.%Y в %H:%M')
-        conn = sqlite3.connect('ads.db')
-        cur = conn.cursor()
-        cur.execute('UPDATE ads SET created_at = ? WHERE id = ?', (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), ad_id))
-        conn.commit()
-        conn.close()
+        # Обновляем created_at в БД
+        try:
+            conn = sqlite3.connect('ads.db')
+            cur = conn.cursor()
+            cur.execute('UPDATE ads SET created_at = ? WHERE id = ?', (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), ad_id))
+            conn.commit()
+            conn.close()
+        except:
+            pass
     
-    # Вычисляем дату удаления
-    from datetime import timedelta
     expiry_date = (datetime.now() + timedelta(days=30)).strftime('%d.%m.%Y')
     
     caption = (
@@ -905,7 +925,6 @@ async def publish_ad_to_channel(ad_id: int):
     
     try:
         if photo_ids:
-            # Проверяем валидность file_id перед отправкой
             valid_photos = []
             for photo_id in photo_ids:
                 try:
@@ -918,9 +937,7 @@ async def publish_ad_to_channel(ad_id: int):
                 media_group = []
                 for i, photo_id in enumerate(valid_photos):
                     if i == 0:
-                        media_group.append(
-                            InputMediaPhoto(media=photo_id, caption=caption, parse_mode="HTML")
-                        )
+                        media_group.append(InputMediaPhoto(media=photo_id, caption=caption, parse_mode="HTML"))
                     else:
                         media_group.append(InputMediaPhoto(media=photo_id))
                 
